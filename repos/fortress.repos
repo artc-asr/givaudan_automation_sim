@@ -1,0 +1,13 @@
+# Underlay for Gazebo Fortress robots (spiritai_moz1). apt has ros_gz for
+# Harmonic only (ros-humble-ros-gzharmonic conflicts with ros-humble-ros-gz), so
+# build Fortress ros_gz from source. moz1 uses apt's gz_ros2_control (Fortress).
+repositories:
+  ros_gz:
+    type: git
+    url: https://github.com/gazebosim/ros_gz.git
+    version: 28e586a3d41f80f4a91e81902b8618c9d506022c   # humble branch
+  # gps_msgs for ros_gz_bridge (not installed from apt here).
+  gps_umd:
+    type: git
+    url: https://github.com/swri-robotics/gps_umd.git
+    version: ad0b508965282807ab07045b028ebc43ab942b98   # ros2-devel

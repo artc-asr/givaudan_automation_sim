@@ -1,0 +1,13 @@
+build/
+install/
+log/
+deps/*/build/
+deps/*/install/
+deps/*/log/
+deps/*/src/
+src/external/
+__pycache__/
+*.pyc
+deps/curobo/
+deps/curobo-venv/
+deps/COLCON_IGNORE

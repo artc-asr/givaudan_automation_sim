@@ -1,0 +1,25 @@
+# Source dependencies of the main workspace. Import with scripts/setup_workspace.sh
+# (or: vcs import src/external < repos/main.repos).
+# Pinned on purpose: bump one at a time and re-run the robot launches.
+repositories:
+  # Robot library: description, contract and sim bringup per robot (artc-asr).
+  # Branch phase5b/package-split; main is still at Phase 0.
+  rochestra:
+    type: git
+    url: https://github.com/artc-asr/rochestra.git
+    version: 8195cd5371ad6a3ca1a2fe4c8865a3672af718c7
+  # The pins below are copied from rochestra.repos at that commit.
+  # lanxin_vb2: vmr_ros_pkg (msgs/srvs) and lx_motor_interfaces.
+  VMR_ROS:
+    type: git
+    url: https://github.com/VMR-Robotics/VMR_ROS.git
+    version: 1661397bd60ba77f79c08e335ee871664f7e8dcf
+  vmr_vb2_jaka_k1:
+    type: git
+    url: https://github.com/VMR-Robotics/vmr_vb2_jaka_k1.git
+    version: 40d371c968fffabe639c658e081cb1f58b2213ea
+  # galbot_g1 body.
+  galbot_one_golf_description:
+    type: git
+    url: https://github.com/CloudEngineHub/galbot_one_golf_description.git
+    version: 2d496b053f0d4e9e2688f59fac66022f447226be

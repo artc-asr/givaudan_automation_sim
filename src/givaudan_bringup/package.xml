@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>givaudan_bringup</name>
+  <version>0.1.0</version>
+  <description>Rochestra robots (vb2, g1, rby1, moz1) in the shelf_world aisle.</description>
+  <maintainer email="thinkminator1024@gmail.com">brian</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>shelf_world</exec_depend>
+  <!-- rochestra (repos/main.repos): core dispatches mode:=gz to the _sim package -->
+  <exec_depend>roc_lanxin_vb2</exec_depend>
+  <exec_depend>roc_lanxin_vb2_sim</exec_depend>
+  <exec_depend>roc_galbot_g1</exec_depend>
+  <exec_depend>roc_galbot_g1_sim</exec_depend>
+  <exec_depend>roc_rby1</exec_depend>
+  <exec_depend>roc_rby1_sim</exec_depend>
+  <exec_depend>roc_spiritai_moz1</exec_depend>
+  <exec_depend>roc_spiritai_moz1_sim</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
