@@ -28,6 +28,7 @@ Run cuRobo with ROS's `PYTHONPATH` removed: `env -u PYTHONPATH deps/curobo-venv/
 ```bash
 env -u PYTHONPATH ../deps/curobo-venv/bin/python sweep.py --robot rby1m --task 1|2 --base fixed|mobile
 env -u PYTHONPATH ../deps/curobo-venv/bin/python render.py results/rby1m_task2_mobile.json 5   # picture
+python3 build_docs.py      # GitHub Pages report: ../docs/index.html (from results/ and figures/)
 ```
 
 - **Task 1**: left hand on the handle bar, tray pulled 25 cm (back end still on the board); right
