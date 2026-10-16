@@ -1,136 +1,84 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shelf Reachability</title>
-<meta name="description" content="Highest shelf level each wheeled humanoid can work, per task, from collision-aware whole-body IK.">
-<style>
-:root {
-  --bg: #f7f7f5; --fg: #1d2127; --muted: #5d6573; --card: #ffffff; --line: #dfe2e7;
-  --ok: #1f8a4c; --ok-bg: #e3f4ea; --no: #a33a2c; --no-bg: #f8e6e3; --accent: #2f5fa7; --code: #eef0f3;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #15181d; --fg: #e6e8eb; --muted: #9aa3b1; --card: #1d2128; --line: #2e343d;
-    --ok: #5cc98a; --ok-bg: #173325; --no: #ef8d7f; --no-bg: #3a1f1b; --accent: #8db4f0; --code: #252a33;
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shelf Tray Demo</title>
+  <meta name="description" content="Gazebo recordings of a wheeled humanoid working the highest shelf level it can reach: pull a tray and suction-pick a vial, or take the whole tray out with two hands.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- ?v=: bump on every change to style.css / app.js, or browsers mix cached and new files -->
+  <link rel="stylesheet" href="style.css?v=1">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "urdf-loader": "https://cdn.jsdelivr.net/npm/urdf-loader@0.12.6/src/URDFLoader.js"
+    }
   }
-}
-:root[data-theme="dark"] {
-  --bg: #15181d; --fg: #e6e8eb; --muted: #9aa3b1; --card: #1d2128; --line: #2e343d;
-  --ok: #5cc98a; --ok-bg: #173325; --no: #ef8d7f; --no-bg: #3a1f1b; --accent: #8db4f0; --code: #252a33;
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
-h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.01em; }
-h2 { font-size: 1.35rem; margin: 40px 0 12px; }
-h3 { font-size: 1.05rem; margin: 24px 0 8px; }
-.sub { color: var(--muted); margin: 0 0 20px; }
-a { color: var(--accent); }
-.lead { font-size: 1.08rem; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 16px; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-.stat .k { color: var(--muted); font-size: .85rem; }
-.stat .v { font-size: 1.35rem; font-weight: 650; }
-.stat .s { color: var(--muted); font-size: .85rem; }
-.scroll { overflow-x: auto; }
-table.ladder { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: 560px; }
-.ladder th, .ladder td { padding: 6px 8px; border-radius: 6px; text-align: left; vertical-align: middle; font-size: .9rem; }
-.ladder thead th { color: var(--muted); font-weight: 600; }
-.ladder th.lvl { white-space: nowrap; font-weight: 650; }
-.ladder th small, .ladder thead small { display: block; color: var(--muted); font-weight: 400; }
-.ladder td.ok { background: var(--ok-bg); color: var(--ok); }
-.ladder td.no { background: var(--no-bg); color: var(--no); }
-.ladder td.na { color: var(--muted); }
-.mark { font-weight: 700; margin-right: 6px; }
-.d { font-size: .8rem; }
-.note { color: var(--muted); font-size: .88rem; }
-.figs { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
-figure { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-figure img { width: 100%; height: auto; display: block; }
-figcaption { background: var(--card); color: var(--muted); font-size: .85rem; padding: 8px 12px; }
-.sketches { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-ul { padding-left: 20px; }
-li { margin: 4px 0; }
-code, pre { background: var(--code); border-radius: 6px; font-size: .88rem; }
-code { padding: 1px 5px; }
-pre { padding: 12px; overflow-x: auto; }
-footer { color: var(--muted); font-size: .85rem; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 12px; }
-</style>
+  </script>
 </head>
 <body>
-<main>
-  <h1>Shelf reachability</h1>
-  <p class="sub">Which tray level can each wheeled humanoid work in a 1.0 m aisle between two 13-level shelves?</p>
-  <p class="lead">Computed with whole-body, two-handed, collision-aware inverse kinematics
-  (<a href="https://github.com/NVlabs/curobo">cuRobo</a>) against the same shelf geometry as the Gazebo world.
-  A level counts as workable when a pose exists that puts both hands on target with no part of the robot
-  touching the shelves, the other trays or the tray it holds.</p>
-  <p class="note">Robots: <a href="#rby1m">Rainbow RB-Y1 (Model M, mecanum)</a> · pending: Lanxin VB2, Galbot G1, SpiritAI Moz1</p>
+  <header class="bar">
+    <div class="controls">
+      <button id="start" class="start" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="start-icon" d="M8 5v14l11-7z"/></svg>
+        <span id="start-label">Loading…</span>
+      </button>
+      <div class="speed" role="group" aria-label="Playback speed">
+        <button data-speed="1">1×</button>
+        <button data-speed="2" class="on">2×</button>
+        <button data-speed="4">4×</button>
+        <button data-speed="8">8×</button>
+      </div>
+      <span id="clock" class="clock">0:00 / 0:00</span>
+    </div>
+    <div class="title">
+      <h1>Shelf tray demo</h1>
+      <div id="robots" class="robots" role="group" aria-label="Demo"></div>
+    </div>
+  </header>
 
-  <h2>Setup</h2>
-  <ul>
-    <li><b>Shelves</b>: two, 1.22 m long, 0.62 m deep, facing each other across a 1.0 m aisle.
-      Bottom board top at 0.36 m, then 12 levels every 0.14 m (top board 2.04 m). 19 trays per level,
-      34 vials (2 × 17) per tray.</li>
-    <li><b>Task 1, pull + suction pick</b>: the left hand holds the tray handle with the tray pulled 25 cm out
-      (its back end stays on the board as the datum); the right hand, an emulated suction tool pointing down
-      (13 cm long), touches a vial in a row clear of the board above (rows 1–4; the 10 cm gap
-      between boards leaves ~17 mm above the vials inside the shelf).</li>
-    <li><b>Task 2, full tray with two hands</b>: the tray is fully out (back end 10 cm in front of the shelf);
-      the left hand holds the handle (from the front or from above), the right hand holds the back end
-      from above, fingers either side of the tray.</li>
-    <li><b>Fixed base</b>: robot at the aisle centre facing the shelf (as spawned in Gazebo).
-      <b>Moving base</b>: the solver may also place and turn the base anywhere in the aisle.</li>
-  </ul>
-  <div class="sketches">
-    <figure><img src="assets/shelves.png" alt="Shelf plan view sketch" loading="lazy"><figcaption>Input sketch: shelves and aisle.</figcaption></figure>
-    <figure><img src="assets/tray.png" alt="Tray sketch" loading="lazy"><figcaption>Input sketch: tray and vials.</figcaption></figure>
+  <div class="timeline">
+    <div id="segments" class="segments"></div>
+    <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Timeline">
   </div>
 
-  
-<section id="rby1m">
-  <h2>Rainbow RB-Y1 (Model M, mecanum)</h2>
-  <div class="stats"><div class="stat"><div class="k">Task 1, fixed base</div><div class="v">level 8</div><div class="s">board top 1.48 m</div></div><div class="stat"><div class="k">Task 1, moving base</div><div class="v">level 8</div><div class="s">board top 1.48 m</div></div><div class="stat"><div class="k">Task 2, fixed base</div><div class="v">level 8</div><div class="s">board top 1.48 m</div></div><div class="stat"><div class="k">Task 2, moving base</div><div class="v">level 8</div><div class="s">board top 1.48 m</div></div></div>
-  <div class="scroll"><table class="ladder">
-    <thead><tr><th>Level<br><small>board top</small></th><th>Task 1<br><small>fixed base</small></th><th>Task 1<br><small>moving base</small></th><th>Task 2<br><small>fixed base</small></th><th>Task 2<br><small>moving base</small></th></tr></thead>
-    <tbody><tr><th class="lvl">12<small>2.04 m</small></th><td class="no" title="misses by 368 mm"><span class="mark">✗</span><span class="d">misses by 368 mm</span></td><td class="no" title="misses by 369 mm"><span class="mark">✗</span><span class="d">misses by 369 mm</span></td><td class="no" title="misses by 393 mm"><span class="mark">✗</span><span class="d">misses by 393 mm</span></td><td class="no" title="misses by 335 mm"><span class="mark">✗</span><span class="d">misses by 335 mm</span></td></tr><tr><th class="lvl">11<small>1.90 m</small></th><td class="no" title="misses by 366 mm"><span class="mark">✗</span><span class="d">misses by 366 mm</span></td><td class="no" title="misses by 221 mm"><span class="mark">✗</span><span class="d">misses by 221 mm</span></td><td class="no" title="misses by 268 mm"><span class="mark">✗</span><span class="d">misses by 268 mm</span></td><td class="no" title="misses by 360 mm"><span class="mark">✗</span><span class="d">misses by 360 mm</span></td></tr><tr><th class="lvl">10<small>1.76 m</small></th><td class="no" title="misses by 36 mm"><span class="mark">✗</span><span class="d">misses by 36 mm</span></td><td class="no" title="misses by 27 mm"><span class="mark">✗</span><span class="d">misses by 27 mm</span></td><td class="no" title="misses by 94 mm"><span class="mark">✗</span><span class="d">misses by 94 mm</span></td><td class="no" title="misses by 581 mm"><span class="mark">✗</span><span class="d">misses by 581 mm</span></td></tr><tr><th class="lvl">9<small>1.62 m</small></th><td class="no" title="misses by 16 mm"><span class="mark">✗</span><span class="d">misses by 16 mm</span></td><td class="no" title="misses by 22 mm"><span class="mark">✗</span><span class="d">misses by 22 mm</span></td><td class="no" title="misses by 96 mm"><span class="mark">✗</span><span class="d">misses by 96 mm</span></td><td class="no" title="misses by 67 mm"><span class="mark">✗</span><span class="d">misses by 67 mm</span></td></tr><tr><th class="lvl">8<small>1.48 m</small></th><td class="ok" title="rows 1, 2, 3"><span class="mark">✓</span><span class="d">rows 1, 2, 3</span></td><td class="ok" title="rows 1, 2, 3, 4 · base +0.14, +0.23 m, +101°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base +0.14, +0.23 m, +101°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base +0.10, +0.52 m, -116°"><span class="mark">✓</span><span class="d">base +0.10, +0.52 m, -116°</span></td></tr><tr><th class="lvl">7<small>1.34 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base +0.08, -0.26 m, +106°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base +0.08, -0.26 m, +106°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base -0.01, -0.18 m, -166°"><span class="mark">✓</span><span class="d">base -0.01, -0.18 m, -166°</span></td></tr><tr><th class="lvl">6<small>1.20 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base -0.03, -0.60 m, +81°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base -0.03, -0.60 m, +81°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base -0.03, -0.20 m, +4°"><span class="mark">✓</span><span class="d">base -0.03, -0.20 m, +4°</span></td></tr><tr><th class="lvl">5<small>1.06 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base -0.16, +0.58 m, +92°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base -0.16, +0.58 m, +92°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base -0.12, +0.57 m, -180°"><span class="mark">✓</span><span class="d">base -0.12, +0.57 m, -180°</span></td></tr><tr><th class="lvl">4<small>0.92 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base +0.12, -0.58 m, -57°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base +0.12, -0.58 m, -57°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base +0.02, -0.35 m, -23°"><span class="mark">✓</span><span class="d">base +0.02, -0.35 m, -23°</span></td></tr><tr><th class="lvl">3<small>0.78 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base +0.02, -0.39 m, +121°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base +0.02, -0.39 m, +121°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base +0.04, -0.19 m, +36°"><span class="mark">✓</span><span class="d">base +0.04, -0.19 m, +36°</span></td></tr><tr><th class="lvl">2<small>0.64 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 2, 3, 4 · base -0.01, +0.60 m, +93°"><span class="mark">✓</span><span class="d">rows 2, 3, 4 · base -0.01, +0.60 m, +93°</span></td><td class="ok" title=""><span class="mark">✓</span><span class="d"></span></td><td class="ok" title="base -0.07, +0.60 m, -180°"><span class="mark">✓</span><span class="d">base -0.07, +0.60 m, -180°</span></td></tr><tr><th class="lvl">1<small>0.50 m</small></th><td class="ok" title="rows 1, 2, 3, 4"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4</span></td><td class="ok" title="rows 1, 2, 3, 4 · base -0.05, +0.60 m, +92°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base -0.05, +0.60 m, +92°</span></td><td class="no" title="misses by 19 mm"><span class="mark">✗</span><span class="d">misses by 19 mm</span></td><td class="ok" title="base +0.05, -0.59 m, +134°"><span class="mark">✓</span><span class="d">base +0.05, -0.59 m, +134°</span></td></tr><tr><th class="lvl">0<small>0.36 m</small></th><td class="ok" title="rows 1, 2, 3"><span class="mark">✓</span><span class="d">rows 1, 2, 3</span></td><td class="ok" title="rows 1, 2, 3, 4 · base -0.07, -0.46 m, +80°"><span class="mark">✓</span><span class="d">rows 1, 2, 3, 4 · base -0.07, -0.46 m, +80°</span></td><td class="no" title="misses by 8 mm"><span class="mark">✗</span><span class="d">misses by 8 mm</span></td><td class="ok" title="base +0.00, +0.34 m, +94°"><span class="mark">✓</span><span class="d">base +0.00, +0.34 m, +94°</span></td></tr></tbody>
-  </table></div>
-  <p class="note">✓ = a collision-free whole-body pose exists (hover for the vial rows / base pose);
-  ✗ = closest attempt and why it failed.</p>
-  <div class="figs"><figure><img src="assets/rby1m_task2_fixed_L05.png" alt="rby1m_task2_fixed_L05" loading="lazy"><figcaption>Task 2: full tray, two hands, fixed base, level 5: robot collision spheres (blue; hands green), held tray (orange), shelves (grey).</figcaption></figure><figure><img src="assets/rby1m_task2_mobile_L05.png" alt="rby1m_task2_mobile_L05" loading="lazy"><figcaption>Task 2: full tray, two hands, moving base, level 5: robot collision spheres (blue; hands green), held tray (orange), shelves (grey).</figcaption></figure></div>
-</section>
+  <main class="layout">
+    <aside class="side">
+      <div id="facts" class="facts"></div>
+      <h2 id="phases-title">States</h2>
+      <ol id="phases" class="phases"></ol>
+      <h2 id="log-title">Demo log</h2>
+      <div id="log" class="log" aria-live="polite"></div>
+    </aside>
 
-  <h2>Method</h2>
-  <ul>
-    <li>Robot geometry from the robots' URDFs (<a href="https://github.com/artc-asr/rochestra">rochestra</a>),
-      approximated by collision spheres fitted automatically to the meshes; self-collision checked.</li>
-    <li>Collision scene: every collision box of the Gazebo world, minus the target tray, plus a keep-out box
-      under each shelf (the robot may not drive under the bottom board).</li>
-    <li>Each solution is re-checked against the whole tray (only the hands may touch it), and its hand poses
-      re-computed independently from the original URDF (worst error 2.7 mm, tolerance 5 mm).</li>
-    <li>Task 1 tries 256 random start poses per problem, task 2 1024 (its solutions are narrow).</li>
-  </ul>
+    <section class="view">
+      <canvas id="canvas"></canvas>
+      <div class="view-tools">
+        <button id="follow" class="tool" aria-pressed="false">Follow robot</button>
+        <button id="reset" class="tool">Reset view</button>
+      </div>
+      <div class="hint">Drag to rotate · right-drag to pan · scroll to zoom</div>
+      <ol id="linebar" class="phases linebar" aria-label="Line" hidden></ol>
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div id="loading-text">Loading…</div>
+      </div>
+    </section>
 
-  <h2>Not covered yet</h2>
-  <ul>
-    <li>Joint torques and payload (tray assumed 2.44 kg), balance, and the motion between poses: only the key
-      holding pose is checked.</li>
-    <li>Real shelf details: whether the space under the bottom board is open (assumed closed), and the tray
-      length (sketch says 620 mm; the model uses 580 mm = 58 handle + 17 × 30 + 12).</li>
-  </ul>
+    <aside id="side-right" class="side side-right" hidden>
+      <h2 id="phases2-title">States</h2>
+      <ol id="phases2" class="phases"></ol>
+    </aside>
+  </main>
 
-  <h2>Reproduce</h2>
-<pre>git clone https://github.com/artc-asr/givaudan_automation_sim.git && cd givaudan_automation_sim
-./scripts/setup_workspace.sh                       # ROS 2 Humble workspace (robot descriptions)
-# cuRobo: see reachability/README.md
-env -u PYTHONPATH deps/curobo-venv/bin/python reachability/sweep.py --robot rby1m --task 2 --base mobile
-python3 reachability/build_docs.py                 # rebuilds this page</pre>
+  <footer id="logbar" class="logbar" hidden>
+    <h2>Demo log</h2>
+  </footer>
 
-  <footer>Generated 2026-10-16 from <code>reachability/results/</code> at commit <code>eec8f3a</code> ·
-  <a href="https://github.com/artc-asr/givaudan_automation_sim">source</a></footer>
-</main>
+  <script type="module" src="app.js?v=1"></script>
 </body>
 </html>

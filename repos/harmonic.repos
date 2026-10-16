@@ -1,6 +1,6 @@
-# Underlay for Gazebo Harmonic robots (lanxin_vb2, galbot_g1, rby1). apt's
+# Underlay: gz_ros2_control for Gazebo Harmonic (all robots, rochestra D19). apt's
 # gz_ros2_control on Humble is built against Fortress, so build this one with
-# GZ_VERSION=harmonic. Never source it together with the Fortress underlay.
+# GZ_VERSION=harmonic.
 # Pin from rochestra.repos.
 repositories:
   gz_ros2_control:

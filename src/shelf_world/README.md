@@ -27,8 +27,8 @@ python3 scripts/generate_world.py --dynamic-level A:5               # board 5 of
 python3 scripts/generate_world.py --dynamic tray_A_L05_T10 tray_B_L00_T01
 ```
 
-Each run writes `worlds/shelf_aisle.sdf` (Harmonic) and `worlds/shelf_aisle_fortress.sdf` (same world,
-Fortress system names, for Fortress robots). Both load the IMU and contact systems for robot sensors.
+The world loads the IMU and contact systems for robot sensors. `--grip` / `--pick-vial` make one
+tray dynamic with sim-only welds to robot links and one loose vial (the demo, see the top README).
 
 Static trays have visuals only; each board's run of static trays shares two collision boxes in
 the shelf model. With 3 boxes on every tray, DART ran at RTF 0.16; merged, it runs at 1.0.

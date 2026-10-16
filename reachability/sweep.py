@@ -48,12 +48,16 @@ ROBOTS = {
         'hand_links': ['ee_left', 'ee_finger_l1', 'ee_finger_l2', 'link_left_arm_6',
                        'ee_right', 'ee_finger_r1', 'ee_finger_r2', 'link_right_arm_6'],
         'grip_depth': 0.10,        # hand frame -> centre of the finger pads, along -z
+        # the handle bar sits 39-59 mm inside the shelf face and the gripper body (126 mm
+        # across the finger axis) does not fit the 100 mm board gap: pinch the bar with the
+        # fingertips, the body staying at the face
+        'bar_depth': 0.13,         # pads 5 mm short of the fingertips (fingers end at 0.135)
         'suction_len': 0.13,       # hand frame -> suction tip, along -z (task 1)
         'fixed_locks': {'wheel_fr': 0.0, 'wheel_fl': 0.0, 'wheel_rr': 0.0, 'wheel_rl': 0.0,
                         'head_0': 0.0, 'head_1': 0.0},
-        'fingers': {1: {'gripper_finger_l1': -0.025, 'gripper_finger_l2': 0.025,     # 50 mm: 20 mm bar
+        'fingers': {1: {'gripper_finger_l1': -0.012, 'gripper_finger_l2': 0.012,     # 24 mm: closed on the 20 mm bar
                         'gripper_finger_r1': -0.025, 'gripper_finger_r2': 0.025},
-                    2: {'gripper_finger_l1': -0.025, 'gripper_finger_l2': 0.025,
+                    2: {'gripper_finger_l1': -0.012, 'gripper_finger_l2': 0.012,
                         'gripper_finger_r1': -0.04, 'gripper_finger_r2': 0.04}},     # 80 mm: 58 mm tray
     },
 }
@@ -153,7 +157,7 @@ def task1(lv, pull, rb):
     problems = []
     xs = sorted({x for x, _ in g.vial_positions()}, reverse=True)       # row 1 nearest the handle
     for r, xt in enumerate(xs, start=1):
-        vial = lv.tray_point(tray_x, xt, -g.COL_Y, lv.top + g.TRAY_FLOOR + g.VIAL_H)  # robot's right column
+        vial = lv.tray_point(tray_x, xt, g.COL_Y, lv.top + g.TRAY_FLOOR + g.VIAL_H)   # robot's right column (world -y)
         if lv.side * vial[0] + g.VIAL_D / 2 >= lv.side * lv.face - 0.02:
             continue                                  # under the board above: not reachable from the top
         right = [(vial + np.array([0, 0, rb['suction_len']]),

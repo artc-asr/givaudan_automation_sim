@@ -46,7 +46,21 @@ python3 build_docs.py      # GitHub Pages report: ../docs/index.html (from resul
   the 16 best IK solutions per problem are tried in order.
 - Seeds: 256 for task 1, 1024 for task 2 (its solutions are narrow: 256 found none).
 
-### rby1 (Model M), shelf levels that work (board top 0.36 m + 0.14 m per level)
+### Correction (2026-10-16): end-to-end results replace the sweep's "level 8"
+
+The sweep below only checks the final holding pose. Planning the whole motion
+(`plan_demo.py`: reach, grasp the handle *in place*, pull, pick / take, lift; base fixed for
+the task) and running it in Gazebo gave a lower answer:
+
+- **rby1, task 1: level 7 (board top 1.34 m)**, base at (0.12, -0.10) m facing the shelf. Levels
+  8-12: no base pose / hand choice even reaches the handle in place. The stock gripper body
+  (126 mm across the finger axis) does not fit the 100 mm board gap, so the bar is pinched with
+  the fingertips. In Gazebo (rochestra D20 collision): grasp and pull 0 mm off the plan, tray
+  pulled 25.0 cm, vial lifted 11.3 cm.
+- Gazebo needed rochestra D20 first: rby1's vendor forearm capsule (150 mm) stopped the hand 49 mm
+  short of the handle (`illustrate_fail.py`, figures/rby1m_task1_L07_grasp_fail.png).
+
+### Sweep (final pose only), rby1 (Model M), shelf levels that work (board top 0.36 m + 0.14 m per level)
 
 | | task 1 (pull + suction) | task 2 (full tray, two hands) |
 |---|---|---|

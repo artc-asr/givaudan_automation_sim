@@ -40,9 +40,15 @@ COL_Y = 0.0145         # vial column offset from tray centre line
 ROWS = 17
 TRAYS_PER_BOARD = 19
 
+# ---- demo (dynamic) tray and loose vial friction (assumed: plastic tray on a metal board) ----
+TRAY_MU = 0.3
+VIAL_MU = 0.1
+
 # ---- dynamic tray mass (assumed) ----
 TRAY_EMPTY_KG = 0.40
 VIAL_KG = 0.06
+
+PLUGIN_NS = {"harmonic": ("gz-sim", "gz::sim"), "fortress": ("ignition-gazebo", "ignition::gazebo")}
 
 SHELVES = {"A": -1, "B": +1}   # side sign: shelf centre at x = side * SHELF_X
 
@@ -101,9 +107,11 @@ def visual(name, pose, geom, mat):
     return f'<visual name="{name}"><pose>{f(*pose)} 0 0 0</pose><geometry>{geom}</geometry>{material(mat)}</visual>'
 
 
-def collision(name, pose, geom):
+def collision(name, pose, geom, mu=None):
     # SDF 1.9 needs unique names among all children of a link, visuals and collisions alike.
-    return f'<collision name="{name}_col"><pose>{f(*pose)} 0 0 0</pose><geometry>{geom}</geometry></collision>'
+    surface = (f"<surface><friction><ode><mu>{mu}</mu><mu2>{mu}</mu2></ode></friction></surface>"
+               if mu is not None else "")
+    return f'<collision name="{name}_col"><pose>{f(*pose)} 0 0 0</pose><geometry>{geom}</geometry>{surface}</collision>'
 
 
 def tray_extents():
@@ -172,7 +180,51 @@ def shelf_model(name, side, extra=(), mesh_boards=()):
   </model>"""
 
 
-def tray_model(name, pose_xyz, yaw, dynamic):
+def detachable(parent_link, child_model, child_link, topic, gz):
+    """DetachableJoint from this model's link to a robot link (sim-only grasp / suction).
+    Harmonic attaches as soon as the child model exists: the demo detaches at its start
+    and re-attaches on <topic>/attach (fixed joint at the current relative pose)."""
+    lib, ns = PLUGIN_NS[gz]
+    return (f'<plugin filename="{lib}-detachable-joint-system" name="{ns}::systems::DetachableJoint">'
+            f'<parent_link>{parent_link}</parent_link><child_model>{child_model}</child_model>'
+            f'<child_link>{child_link}</child_link><attach_topic>{topic}/attach</attach_topic>'
+            f'<detach_topic>{topic}/detach</detach_topic><output_topic>{topic}/state</output_topic>'
+            f'<suppress_child_warning>true</suppress_child_warning></plugin>')
+
+
+def pose_publisher(gz):
+    """Publishes the model's pose on /model/<name>/pose (for the recorder)."""
+    lib, ns = PLUGIN_NS[gz]
+    return (f'<plugin filename="{lib}-pose-publisher-system" name="{ns}::systems::PosePublisher">'
+            '<publish_link_pose>false</publish_link_pose><publish_model_pose>true</publish_model_pose>'
+            '<use_pose_vector_msg>false</use_pose_vector_msg><update_frequency>50</update_frequency></plugin>')
+
+
+def vial_model(name, pose_xyz, grip, gz):
+    """One loose vial (the one a suction tool picks), standing on its tray's floor."""
+    m, r, h = VIAL_KG, VIAL_D / 2, VIAL_H
+    ixx, izz = m * (3 * r * r + h * h) / 12, m * r * r / 2
+    geom = f"<cylinder><radius>{f(r)}</radius><length>{f(h)}</length></cylinder>"
+    # 1 mm slimmer collision and low friction: it stands 1 mm from its neighbours and would
+    # otherwise jam when lifted straight out
+    col_geom = f"<cylinder><radius>{f(r - 0.001)}</radius><length>{f(h)}</length></cylinder>"
+    plugins = [pose_publisher(gz)] + ([detachable("vial", grip[0], grip[1], f"/givaudan/{name}/{grip[1]}", gz)]
+                                      if grip else [])
+    return f"""  <model name="{name}">
+    <pose>{f(*pose_xyz)} 0 0 0</pose>
+    <link name="vial">
+      <inertial><pose>0 0 {f(h / 2)} 0 0 0</pose><mass>{f(m)}</mass><inertia><ixx>{ixx:.6g}</ixx><iyy>{ixx:.6g}</iyy>
+        <izz>{izz:.6g}</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
+      {visual("body", (0, 0, h / 2), geom, "vial")}
+      {collision("body", (0, 0, h / 2), col_geom, mu=VIAL_MU)}
+    </link>
+    {"".join(plugins)}
+  </model>"""
+
+
+def tray_model(name, pose_xyz, yaw, dynamic, grips=(), pick=None, gz="harmonic"):
+    """`grips`: [(model, link)] welds for the robot's hands; `pick`: (row, col) of the vial
+    taken out as its own model (then the tray is hollow, with one collision per vial)."""
     vx = [x for x, _ in vial_positions()]
     vial_x0, vial_x1 = min(vx) - VIAL_D / 2, max(vx) + VIAL_D / 2
     bar_x = TRAY_L / 2 - HANDLE_ZONE / 2
@@ -183,8 +235,15 @@ def tray_model(name, pose_xyz, yaw, dynamic):
         visual("bar", (bar_x, 0, BAR_Z + BAR / 2), box(BAR, TRAY_W, BAR), "handle"),
         visual("upright_l", (bar_x, TRAY_W / 2 - UPRIGHT_T / 2, TRAY_H + up_h / 2), box(BAR, UPRIGHT_T, up_h), "handle"),
         visual("upright_r", (bar_x, -TRAY_W / 2 + UPRIGHT_T / 2, TRAY_H + up_h / 2), box(BAR, UPRIGHT_T, up_h), "handle"),
-        f'<visual name="vials"><geometry><mesh><uri>model://vial_block/meshes/vial_block.obj</uri></mesh></geometry>{material("vial")}</visual>',
     ]
+    vials = vial_positions()
+    picked = vial_xy(*pick) if pick else None
+    cyl = f"<cylinder><radius>{f(VIAL_D / 2)}</radius><length>{f(VIAL_H)}</length></cylinder>"
+    if dynamic:   # one visual per vial: a picked vial leaves a gap, and the replay page needs primitives
+        vis += [visual(f"vial_{i:02d}", (x, y, TRAY_FLOOR + VIAL_H / 2), cyl, "vial")
+                for i, (x, y) in enumerate(vials) if (x, y) != picked]
+    else:
+        vis.append(f'<visual name="vials"><geometry><mesh><uri>model://vial_block/meshes/vial_block.obj</uri></mesh></geometry>{material("vial")}</visual>')
     # Coarse collision: body, handle, and one box around all 34 vials.
     col = [
         collision("body", (0, 0, TRAY_H / 2), box(TRAY_L, TRAY_W, TRAY_H)),
@@ -192,6 +251,17 @@ def tray_model(name, pose_xyz, yaw, dynamic):
         collision("vials", ((vial_x0 + vial_x1) / 2, 0, TRAY_H + (TRAY_FLOOR + VIAL_H - TRAY_H) / 2),
                   box(vial_x1 - vial_x0, TRAY_W, TRAY_FLOOR + VIAL_H - TRAY_H)),
     ]
+    if pick:      # hollow tray (floor + walls) and one collision per vial: the loose vial stands on the floor
+        wall = 0.003
+        col = [
+            collision("floor", (0, 0, TRAY_FLOOR / 2), box(TRAY_L, TRAY_W, TRAY_FLOOR), mu=TRAY_MU),
+            collision("side_l", (0, TRAY_W / 2 - wall / 2, TRAY_H / 2), box(TRAY_L, wall, TRAY_H)),
+            collision("side_r", (0, -TRAY_W / 2 + wall / 2, TRAY_H / 2), box(TRAY_L, wall, TRAY_H)),
+            collision("end_back", (-TRAY_L / 2 + wall / 2, 0, TRAY_H / 2), box(wall, TRAY_W, TRAY_H)),
+            collision("end_front", (TRAY_L / 2 - wall / 2, 0, TRAY_H / 2), box(wall, TRAY_W, TRAY_H)),
+            collision("bar", (bar_x, 0, BAR_Z + BAR / 2), box(BAR, TRAY_W, BAR)),
+        ] + [collision(f"vial_{i:02d}", (x, y, TRAY_FLOOR + VIAL_H / 2), cyl)
+             for i, (x, y) in enumerate(vials) if (x, y) != picked]
     inertial = ""
     if dynamic:
         m = TRAY_EMPTY_KG + ROWS * 2 * VIAL_KG
@@ -203,16 +273,28 @@ def tray_model(name, pose_xyz, yaw, dynamic):
                     f"<ixx>{ixx:.6g}</ixx><iyy>{iyy:.6g}</iyy><izz>{izz:.6g}</izz>"
                     f"<ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>")
     body = "\n      ".join(([inertial] if inertial else []) + vis + (col if dynamic else []))
+    plugins = ([pose_publisher(gz)] if dynamic else []) + [
+        detachable("tray", m, lk, f"/givaudan/{name}/{lk}", gz) for m, lk in grips]
     return f"""  <model name="{name}">
     <static>{'false' if dynamic else 'true'}</static>
     <pose>{f(*pose_xyz)} 0 0 {f(yaw)}</pose>
     <link name="tray">
       {body}
     </link>
+    {"".join(plugins)}
   </model>"""
 
 
-def world_sdf(dynamic_ids, gz="harmonic"):
+def vial_xy(row, col):
+    """Tray-frame centre of vial `row` (1 = next to the handle) in column `col` (1: +y, 2: -y)."""
+    xs = sorted({x for x, _ in vial_positions()}, reverse=True)
+    return xs[row - 1], COL_Y if col == 1 else -COL_Y
+
+
+def world_sdf(dynamic_ids, gz="harmonic", grips=None, picks=None):
+    """`grips`: {tray id: [(model, link)]}; `picks`: {tray id: (row, col, (model, link) or None)}."""
+    grips, picks = grips or {}, picks or {}
+    dynamic_ids = set(dynamic_ids) | set(grips) | set(picks)
     boards = board_list()
     mixed = {(s, lvl) for s in SHELVES for lvl in range(len(boards))
              if any(f"tray_{s}_L{lvl:02d}_T{t:02d}" in dynamic_ids for t in range(1, TRAYS_PER_BOARD + 1))}
@@ -231,8 +313,16 @@ def world_sdf(dynamic_ids, gz="harmonic"):
                 dyn = tid in dynamic_ids
                 n_dyn += dyn
                 # dynamic trays start 1 mm above the board so they settle instead of interpenetrating
-                models.append(tray_model(tid, (cx, y, z0 + t + (0.001 if dyn else 0)), yaw, dyn))
-    unknown = set(dynamic_ids) - {m.split('"')[1] for m in models}   # every dynamic tray's board is in mixed
+                pose = (cx, y, z0 + t + (0.001 if dyn else 0))
+                pick = picks.get(tid)
+                models.append(tray_model(tid, pose, yaw, dyn, grips.get(tid, ()), pick[:2] if pick else None, gz))
+                if pick:
+                    vx_t, vy_t = vial_xy(*pick[:2])
+                    c, sn = math.cos(yaw), math.sin(yaw)
+                    models.append(vial_model(f"vial_{tid[5:]}_r{pick[0]:02d}c{pick[1]}",
+                                             (pose[0] + c * vx_t - sn * vy_t, pose[1] + sn * vx_t + c * vy_t,
+                                              pose[2] + TRAY_FLOOR + 0.0005), pick[2], gz))
+    unknown = dynamic_ids - {m.split('"')[1] for m in models}   # every dynamic tray's board is in mixed
     if unknown:
         raise SystemExit(f"unknown tray ids: {sorted(unknown)}")
     body = "\n".join(models)
@@ -279,7 +369,7 @@ def world_sdf(dynamic_ids, gz="harmonic"):
 
 def world_plugins(gz):
     """World systems. IMU and contact are there for the robots' sensors (rochestra's worlds load them too)."""
-    lib, ns = {"harmonic": ("gz-sim", "gz::sim"), "fortress": ("ignition-gazebo", "ignition::gazebo")}[gz]
+    lib, ns = PLUGIN_NS[gz]
     systems = [("physics", "Physics"), ("user-commands", "UserCommands"), ("scene-broadcaster", "SceneBroadcaster"),
                ("imu", "Imu"), ("contact", "Contact")]
     lines = [f'  <plugin filename="{lib}-{f}-system" name="{ns}::systems::{n}"/>' for f, n in systems]
@@ -441,8 +531,13 @@ def main():
                     help="tray ids to make dynamic, e.g. tray_A_L05_T10")
     ap.add_argument("--dynamic-level", nargs="*", default=[], metavar="SHELF:LEVEL",
                     help="make a whole board of trays dynamic, e.g. A:5")
+    ap.add_argument("--grip", nargs="*", default=[], metavar="TRAY=MODEL:LINK[,LINK]",
+                    help="sim-only welds from a tray to robot links, e.g. tray_B_L08_T10=rby1:ee_left,ee_right")
+    ap.add_argument("--pick-vial", nargs="*", default=[], metavar="TRAY:ROW:COL[=MODEL:LINK]",
+                    help="make one vial its own model (row 1 next to the handle, col 1/2), optionally with "
+                         "a suction weld, e.g. tray_B_L08_T10:3:1=rby1:ee_right")
     ap.add_argument("-o", "--output", type=Path, default=pkg / "worlds" / "shelf_aisle.sdf",
-                    help="Harmonic world; the Fortress copy (for Fortress robots) goes next to it as <name>_fortress.sdf")
+                    help="the world file (Gazebo Harmonic)")
     args = ap.parse_args()
 
     dyn = set(args.dynamic)
@@ -450,10 +545,20 @@ def main():
         s, lvl = spec.split(":")
         dyn |= {f"tray_{s}_L{int(lvl):02d}_T{t:02d}" for t in range(1, TRAYS_PER_BOARD + 1)}
 
+    grips = {}
+    for spec in args.grip:
+        tray, rest = spec.split("=")
+        model, links = rest.split(":")
+        grips[tray] = [(model, lk) for lk in links.split(",")]
+    picks = {}
+    for spec in args.pick_vial:
+        where, _, who = spec.partition("=")
+        tray, row, col = where.split(":")
+        picks[tray] = (int(row), int(col), tuple(who.split(":")) if who else None)
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    for gz, out in (("harmonic", args.output), ("fortress", args.output.with_name(f"{args.output.stem}_fortress.sdf"))):
-        sdf, n_dyn = world_sdf(dyn, gz)
-        out.write_text(sdf)
+    sdf, n_dyn = world_sdf(dyn, "harmonic", grips, picks)
+    args.output.write_text(sdf)
 
     mdir = pkg / "models" / "vial_block"
     (mdir / "meshes").mkdir(parents=True, exist_ok=True)
@@ -471,7 +576,7 @@ def main():
         "meshes/vial_block.obj", "meshes/tray_board.obj"))
 
     n_trays = len(SHELVES) * len(board_list()) * TRAYS_PER_BOARD
-    print(f"wrote {args.output} (+ _fortress): 2 shelves, {n_trays} trays ({n_dyn} dynamic), "
+    print(f"wrote {args.output}: 2 shelves, {n_trays} trays ({n_dyn} dynamic), "
           f"{n_trays * ROWS * 2} vials")
 
 

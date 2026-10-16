@@ -1,0 +1,12 @@
+{
+ "demos": [
+  {
+   "id": "task1",
+   "label": "Task 1: pull + suction pick"
+  },
+  {
+   "id": "task2",
+   "label": "Task 2: whole tray, two hands"
+  }
+ ]
+}
